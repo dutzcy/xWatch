@@ -8,7 +8,7 @@
     $str = $client->call('loadVideo', $params);
     echo $str;
 
-    /*if (!$err=$client->getError())
+    if (!$err=$client->getError())
     {
         echo " 程序返回 :",$str;
     } else {
@@ -19,5 +19,4 @@
     echo'<pre>',htmlspecialchars($client->request,ENT_QUOTES),'</pre>';
     echo 'Response:';
     echo '<pre>',htmlspecialchars($client->response,ENT_QUOTES ),'</pre>';
-
 ?>
