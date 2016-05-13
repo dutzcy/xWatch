@@ -1,0 +1,34 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>欢迎</title>
+</head>
+
+<?php
+    /*$file_handle = fopen("Event", "rw");
+
+    while (!feof($file_handle)) {
+       $line = fgets($file_handle);
+       echo $line;
+    }
+
+    fclose($file_handle);*/
+    echo '<br/><br/><br/><br/><br/><br/>';
+    echo '<div align=center>';
+
+    if($_POST['args'] != ""){
+        echo 'what you input in the textbox are:';
+        echo $_POST['args'];
+        echo '<br/><br/>then the c++ program will execute as follows:<br/><br/><br/>';
+        /*call c++ aplications,the sapce right after ./test is necessary.
+          It separate the command from its arguments*/
+        $command="./WatchDog ".escapeshellcmd($_POST['args']);
+        passthru($command);
+    }else{
+        echo '<br/>You did not enter anything in the textbox.';
+    }
+
+    echo '</div>';
+?>
+
+</html>

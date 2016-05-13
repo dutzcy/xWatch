@@ -4,7 +4,7 @@
     $client = new nusoap_client("http://127.0.0.1/nusoap/server.php");
 
     $pwd = 'zcy4201';
-    $params = array('a'=>$pwd, 'b'=>'10240', 'c'=>'1001024');
+    $params = array('a'=>$pwd);
     $str = $client->call('loadVideo', $params);
     echo $str;
 

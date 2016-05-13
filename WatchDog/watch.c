@@ -13,7 +13,9 @@
 
 #include <sys/unistd.h>
 #include <sys/types.h>
-#include <winsock2.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -167,18 +169,10 @@ void* socketService(void* args) {
 	int sock;
 	struct sockaddr_in server, client;
 	int recvd, snd;
-	unsigned long int structlength;
+	socklen_t structlength;
 	char * server_ip = "127.0.0.1";
 	int port = 8888;
 	char recvbuf[2];
-
-	//Winsows下启用socket
-	WSADATA wsadata;
-	if (WSAStartup(MAKEWORD(1,1),&wsadata) == SOCKET_ERROR)
-	{
-	    printf("WSAStartup() fail\n");
-	    exit(0);
-	}
 
 	memset((char *) &server, 0, sizeof(server));
 	server.sin_family = AF_INET;
@@ -375,7 +369,7 @@ Event* produceEvent() {
 
 	Event* event = (Event*) malloc(sizeof(Event));
 
-	event->threadId = 111/*pthread_self()*/;
+	event->threadId = pthread_self();
 	event->level = WARNING;
 
 	event->title = (char*) malloc(sizeof(char) * 64);

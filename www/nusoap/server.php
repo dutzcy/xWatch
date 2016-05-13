@@ -78,7 +78,7 @@
         call_user_func('checkPassword', $pwd);
 
         // 将图像文件使用Base64编码并返回
-        $handle = @fopen($filepath, "r") or die("Couldn't open $filepath");
+        $handle = @fopen($filepath, "r");
         $getcontent = @fread($handle,filesize($filepath));
         fclose(@$handle);
 
@@ -88,30 +88,19 @@
     }
 
     // 现阶段只有一份录制视频。。。 
-    function loadVideo($pwd, $offset, $size) //分块读取大块数据
+    function loadVideo($pwd)
     {
         call_user_func('checkPassword', $pwd);
 
         // 将图像文件使用Base64编码并返回
         $filepath = "out.avi";
-        $handle = @fopen($filepath, "r") or die("Couldn't open $filepath");
-        $filesize = filesize($filepath);
-        if ($offset < $filesize)
-        {
-            @fseek($handle, $offset);  //偏移到指定位置
-            if (($offset+$size) > $filesize)  //计算最后一块大小
-                $size = $filesize - $offset;
-            $getblock = @fread($handle, $size); //读取指定大小块
-        } else  //文件读取结束
-        {
-            return "end";
-        }
-        
+        $handle = @fopen($filepath, "r");
+        $getcontent = @fread($handle,filesize($filepath));
         fclose(@$handle);
 
-        $block = @base64_encode($getblock);
+        $content = @base64_encode($getcontent);
 
-        return $block;
+        return $content;
     }
 
 //////////////////////////////////////////////////////////////
