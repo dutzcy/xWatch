@@ -11,19 +11,32 @@ import org.ksoap2.transport.HttpTransportSE;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 
-public class EventServerConnection {
+public class EventServerConnection extends AsyncTask<String[], Integer, Object> {
 
 	private final static String TAG = "EventServerConnection";
 
-	private static EventServerConnection mServerConn;
-
-	public final static String HOST_NAME = "http://192.168.2.110";
+	public final static String HOST_NAME = "http://10.239.17.68";
 	//public final static String HOST_NAME = "http://muhaha.oicp.net";
 	public final static String SERVICE_FILE = "/nusoap/server.php";
 
-	// 已注册的WebService
+    // 已注册的WebService
+    public final static int DEFAULT = 0;
+    public final static int LOADING_SERVER = 1;
+    public final static int START_SERVER = 2;
+    public final static int CHECK_SERVER = 3;
+	public final static int NEW_EVENT_COMMING = 4;
+    public final static int LOAD_IMAGE = 5;
+    public final static int LOAD_VIDEO = 6;
+    public final static int CAPTURE_FRAME = 7;
+    public final static int SWITCH_RECORD_VIDEO = 8;
+    public final static int STOP_SERVER = 9;
+
 	private final static String API_LOADING_SERVER = "loadingServer";
 	private final static String API_START_SERVER = "startServer";
 	private final static String API_CHECK_SERVER = "checkServer";
@@ -33,7 +46,9 @@ public class EventServerConnection {
 	private final static String API_SWITCH_RECORD_VIDEO = "switchRecordVideo";
 	private final static String API_STOP_SERVER = "stopServer";
 
-	private String mPWD = ""; // 登录服务器密码
+	private static String mPWD = ""; // 登录服务器密码
+    private int mWebService = DEFAULT;
+    private Handler mHandler = null;
 
 	public class ServerProcess {
 		public final static String WATCH_DOG = "WatchDog";
@@ -41,14 +56,57 @@ public class EventServerConnection {
 		// ...
 	}
 
-	private EventServerConnection() {
+    public EventServerConnection(Handler handler) {
+        mHandler = handler;
+    }
+
+    synchronized public void switchCurrentService(int webService) {
+        mWebService = webService;
+    }
+
+	@Override
+	protected Object doInBackground(String[]... params) {
+        Object result = null;
+
+        switch (mWebService) {
+            case LOADING_SERVER:
+                result = loadingEventServer(params[0]);
+                break;
+            case START_SERVER:
+                result = startServerProcess(params[0]);
+                break;
+            case CHECK_SERVER:
+                result = checkEventServer();
+                break;
+            case LOAD_IMAGE:
+                result = loadEventImage(params[0]);
+                break;
+            case LOAD_VIDEO:
+                result = loadAndSaveVideo(params[0]);
+				break;
+			case CAPTURE_FRAME:
+				result = captureFrame();
+				break;
+			case SWITCH_RECORD_VIDEO:
+				result = switchRecordVideo(params[0]);
+				break;
+			case STOP_SERVER:
+				result = stopServerProcess(params[0]);
+				break;
+			case DEFAULT:
+				break;
+
+        }
+
+		return result;
 	}
 
-	synchronized static EventServerConnection getInstance() {
-		if (mServerConn == null)
-			mServerConn = new EventServerConnection();
-
-		return mServerConn;
+	@Override
+	protected void onPostExecute(Object result) {
+        Message msg = new Message();
+        msg.what = mWebService;
+        msg.obj = result;
+        mHandler.sendMessage(msg);
 	}
 
 	// 调用WebService API并返回Object
@@ -79,16 +137,24 @@ public class EventServerConnection {
 		return result;
 	}
 
-	// 登录事件服务器
-	public int loadingEventServer(String pwd) {
+    private String[] addPWD2Params(String[] params) {
+        String[] newParams = new String[params.length + 1];
+        newParams[0] = mPWD;
+        for (int i=0; i<params.length; i++) {
+            newParams[i] = params[i];
+        }
+        return newParams;
+    }
 
-		String[] params = { pwd };
+	// 登录事件服务器
+	public Integer loadingEventServer(String[] params) {
+
 		Object a = callWebService(API_LOADING_SERVER, params);
 		String result = a.toString();
 		Log.d(TAG, "loading..." + result);
 
 		if (result.equals("true")) {
-			mPWD = pwd; // 保存密码
+			mPWD = params[0]; // 保存密码
 			return 1;
 		} else if (result.equals("false")) {
 			return 0;
@@ -97,22 +163,20 @@ public class EventServerConnection {
 	}
 
 	// 开启某个监听服务
-	public void startServerProcess(String name) {
+	public String startServerProcess(String[] params) {
 
-		String[] params = { mPWD, name };
-		Object a = callWebService(API_START_SERVER, params);
+		Object a = callWebService(API_START_SERVER, addPWD2Params(params));
 		String result = a.toString();
 
 		Log.d(TAG, "start server: " + result);
+        return result;
 	}
 
 	// 加载事件图像
-	public Bitmap loadEventImage(String filepath) {
+	public Bitmap loadEventImage(String[] params) {
 
 		Bitmap bitmap = null;
-
-		String[] params = { mPWD, filepath };
-		Object a = callWebService(API_LOAD_IMAGE, params);
+		Object a = callWebService(API_LOAD_IMAGE, addPWD2Params(params));
 
 		// 解码使用Base64编码的图像数据
 		String content = a.toString();
@@ -143,10 +207,9 @@ public class EventServerConnection {
 	}
 
 	// 切换录制视频的开关函数
-	public boolean switchRecordVideo(boolean flag) {
+	public Boolean switchRecordVideo(String[] params) {
 
-		String[] params = { mPWD, (flag ? "true" : "false") };
-		Object a = callWebService(API_SWITCH_RECORD_VIDEO, params);
+		Object a = callWebService(API_SWITCH_RECORD_VIDEO, addPWD2Params(params));
 
 		if (a != null && a.toString().equals("true"))
 			return true;
@@ -155,12 +218,15 @@ public class EventServerConnection {
 	}
 
 	// 加载并保存视频(分块加载与保存)
-	public boolean loadAndSaveVideo(String filepath, int offset, int size) {
+	public Boolean loadAndSaveVideo(String[] params) {
+        int offset = 0;
+        int size = 100 * 1024; //一次100k
+        Object a = null;
 
-		String[] params = { mPWD, Integer.toString(offset),  Integer.toString(size)};
-		Object a = callWebService(API_LOAD_VIDEO, params);
+		do {
+            String[] tempParams = { mPWD, Integer.toString(offset), Integer.toString(size)};
+            a = callWebService(API_LOAD_VIDEO, params);
 
-		if (a != null) {
 			// 解码使用Base64编码的图像数据
 			String content = a.toString();
 			if (content.equals("end"))  //文件写入完毕
@@ -169,17 +235,19 @@ public class EventServerConnection {
 
 			// 将byte数组写入文件
 			try {
-				FileOutputStream fos = new FileOutputStream(filepath, true); // 追加方式写
+				FileOutputStream fos = new FileOutputStream(params[0], true); // 追加方式写
 				fos.write(data);
 				fos.close();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
+                return false;
 			}
-			return false;
-		}
 
-		return false;
+            offset += size;
+		} while (a != null);
+
+		return true;
 	}
 
 	// 检查有无事件发生
@@ -193,10 +261,9 @@ public class EventServerConnection {
 	}
 
 	// 停止某个监听服务
-	public boolean stopServerProcess(String name) {
+	public Boolean stopServerProcess(String[] params) {
 
-		String[] params = { mPWD, name };
-		Object a = callWebService(API_STOP_SERVER, params);
+		Object a = callWebService(API_STOP_SERVER, addPWD2Params(params));
 		if (a != null)
 			return true;
 		else

@@ -1,8 +1,14 @@
 WatchDog : tools.o watch.o
-	cc -o WatchDog tools.o watch.o
+	g++ -I/usr/local/include/opencv2 \
+            -lopencv_core \
+            -lopencv_imgcodecs \
+            -lopencv_highgui \
+            -lopencv_imgproc \
+            -lopencv_videoio \
+            -o WatchDog tools.o watch.o
 
-tools.o : tools.c tools.h
-	cc -c tools.c
+tools.o : tools.cpp tools.h
+	g++ -c tools.cpp
 
-watch.o : watch.c
-	cc -c watch.c
+watch.o : watch.cpp
+	g++ -c watch.cpp

@@ -1,12 +1,5 @@
 package org.redsun.xwatch;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-
-import org.redsun.xwatch.EventServerConnection.ServerProcess;
-
 import android.app.AlertDialog;
 import android.app.ListActivity;
 import android.content.ContentValues;
@@ -27,6 +20,13 @@ import android.view.View;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 public class EventListActivity extends ListActivity {
 
 	private final static String TAG = "EventListActivity";
@@ -34,11 +34,8 @@ public class EventListActivity extends ListActivity {
 	// Event 图像存储路径
 	private final static String mImagePath = "/sdcard/xWatch/image/";
 
-	Intent mWatchServiceIntent = new Intent("com.zcy.android.WATCH");
+	private Intent mWatchServiceIntent = new Intent("com.zcy.android.WATCH");
 	private EventServerConnection mServerConn;
-
-	// Message定义
-	public final static int NEW_EVENT_COMMING = 0;
 
 	// 消息处理
 	public static Handler mHandler;
@@ -55,16 +52,25 @@ public class EventListActivity extends ListActivity {
 		mHandler = new Handler() {
 			@Override
 			public void handleMessage(Message msg) {
-				// TODO
-				// Auto-generated method stub
 				// 获取事件
 				switch (msg.what) {
-				case NEW_EVENT_COMMING:
-					Log.d(TAG, "NEW_EVENT_COMMING");
-					addData(msg.getData());
-					// mEventListAdatper.notifyDataSetChanged(); //更新事件列表
-					break;
-				default:
+					case EventServerConnection.NEW_EVENT_COMMING:
+						Log.d(TAG, "NEW_EVENT_COMMING");
+						addData(msg.getData());
+						// mEventListAdatper.notifyDataSetChanged(); //更新事件列表
+						break;
+					case EventServerConnection.LOAD_IMAGE:
+						Bitmap bmp = (Bitmap) msg.obj;
+						if (bmp != null) {
+                            SimpleDateFormat simpleDateFormat;
+                            simpleDateFormat = new SimpleDateFormat("yyyyMMdd");
+                            Date date = new Date();
+                            String filename = simpleDateFormat.format(date);
+							String filepath = mImagePath + filename;
+							saveBitmap(bmp, filepath);
+						}
+						break;
+					default:
 				}
 			}
 		};
@@ -73,13 +79,14 @@ public class EventListActivity extends ListActivity {
 		file.mkdirs();
 
 		// 开启服务器监测程序
-		mServerConn = EventServerConnection.getInstance();
+		mServerConn = new EventServerConnection(mHandler);
 		//mServerConn.startServerProcess(ServerProcess.WATCH_DOG);
 
 		// 开启事件监听服务
 		Bundle bundle = new Bundle();
 		bundle.putInt("op", 0);
 		mWatchServiceIntent.putExtras(bundle);
+        mWatchServiceIntent.setPackage(getPackageName());
 		startService(mWatchServiceIntent);
 
 		mEventDBService = new EventDBService(this);
@@ -115,14 +122,9 @@ public class EventListActivity extends ListActivity {
 
 		if (cursor.moveToNext()) {
 			String file = cursor.getString(sourcePathIndex);
-			Bitmap bmp = mServerConn.loadEventImage(file);
-
-			if (bmp != null) {
-				file = file.trim();
-				String filename = file.substring(file.lastIndexOf("/") + 1);
-				String filepath = mImagePath + filename;
-				saveBitmap(bmp, filepath);
-			}
+			mServerConn.switchCurrentService(EventServerConnection.LOAD_IMAGE);
+			String[] params = { file };
+			mServerConn.execute(params);
 		}
 		cursor.close();
 

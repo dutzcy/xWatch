@@ -9,8 +9,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.NetworkInfo.State;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.support.v7.app.NotificationCompat;
@@ -19,6 +22,7 @@ import android.widget.Toast;
 
 public class EventService extends Service implements Runnable {
 
+    private final static String TAG = "EventService";
 	private final int ID_NOTIFICATION = 1;
 	private NotificationManager mNotiManager;
 
@@ -31,6 +35,38 @@ public class EventService extends Service implements Runnable {
 	private boolean mIsRunning = true; // 用于线程控制
 	private BroadcastReceiver mNetworkStateReceiver;
 	private static boolean mFirstInit = true;
+
+	private Handler mHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            // TODO Auto-generated method stub
+            switch (msg.what) {
+                case EventServerConnection.CHECK_SERVER:
+					if (msg.obj != null) {
+						String result = msg.obj.toString();
+						Log.d("zcy", "serviece - length" + result.length());
+						String[] eventBriefs = result.split("\n");
+
+						for (int i = 0; i < eventBriefs.length; i++) {
+							Event event = new Event(eventBriefs[i]);
+							showNotification(event.getSegment(Event.TITLE));
+
+							// 通知EventListActivity保存事件信息并更新列表视图
+							Message msg1 = EventListActivity.mHandler
+									.obtainMessage(EventServerConnection.NEW_EVENT_COMMING);
+							Bundle b = new Bundle();
+							b.putString("eventBrief", event.getBrief());
+							msg1.setData(b);
+
+							EventListActivity.mHandler.sendMessage(msg1);
+						}
+					}
+                    break;
+                default:
+            }
+            ;
+        }
+    };
 
 	@Override
 	public void onCreate() {
@@ -52,18 +88,19 @@ public class EventService extends Service implements Runnable {
 
 				// 获得网络连接服务
 				ConnectivityManager connManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-				// State state = connManager.getActiveNetworkInfo().getState();
-				State state = connManager.getNetworkInfo(
-						ConnectivityManager.TYPE_WIFI).getState(); // 获取网络连接状态
-				if (State.CONNECTED == state) { // 判断是否正在使用WIFI网络
-					success = true;
-				}
+                NetworkInfo activeNetwork = connManager.getActiveNetworkInfo();
 
-				state = connManager.getNetworkInfo(
-						ConnectivityManager.TYPE_MOBILE).getState(); // 获取网络连接状态
-				if (State.CONNECTED == state) { // 判断是否正在使用GPRS网络
-					success = true;
-				}
+                if (activeNetwork != null) { // connected to the internet
+                    if (activeNetwork.getType() == ConnectivityManager.TYPE_WIFI) {
+                        // connected to wifi
+                        Toast.makeText(context, activeNetwork.getTypeName(), Toast.LENGTH_SHORT).show();
+                        success = true;
+                    } else if (activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE) {
+                        // connected to the mobile provider's data plan
+                        Toast.makeText(context, activeNetwork.getTypeName(), Toast.LENGTH_SHORT).show();
+                        success = true;
+                    }
+                }
 
 				if (!success) {
 					Toast.makeText(context, "您的网络连接已中断", Toast.LENGTH_LONG)
@@ -128,29 +165,14 @@ public class EventService extends Service implements Runnable {
 		// TODO Auto-generated method stub
 		while (mIsRunning) {
 			try {
-				Object a = EventServerConnection.getInstance().checkEventServer();
-
-				if (a != null) {
-					String result = a.toString();
-					Log.d("zcy", "serviece - length" + result.length());
-					String[] eventBriefs = result.split("\n");
-					
-					for (int i = 0; i < eventBriefs.length; i++) {
-						Event event = new Event(eventBriefs[i]);
-						showNotification(event.getSegment(Event.TITLE));
-
-						// 通知EventListActivity保存事件信息并更新列表视图
-						Message msg = EventListActivity.mHandler
-								.obtainMessage(EventListActivity.NEW_EVENT_COMMING);
-						Bundle b = new Bundle();
-						b.putString("eventBrief", event.getBrief());
-						msg.setData(b);
-
-						EventListActivity.mHandler.sendMessage(msg);
-					}
-				}
-
-				Thread.sleep(1000);
+                while (mIsRunning) {
+                    EventServerConnection conn = new EventServerConnection(mHandler);
+                    conn.switchCurrentService(EventServerConnection.CHECK_SERVER);
+                    String[] params = {};
+                    conn.execute(params);
+                    Log.d(TAG, "Running EventServerConnection.CHECK_SERVER");
+                    Thread.sleep(1000);
+                }
 
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
